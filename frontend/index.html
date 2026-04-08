@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gym Management Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-light': '#F8F9FA',
+                        /* Light background */
+                        'secondary-light': '#FFFFFF',
+                        /* White card background */
+                        'text-primary': '#212529',
+                        /* Dark text for headings */
+                        'text-secondary': '#6C757D',
+                        /* Grey text for secondary info */
+                        'accent-blue': '#007BFF',
+                        /* Primary accent color */
+                        'accent-green': '#28A745',
+                        /* Success color */
+                        'accent-red': '#DC3545',
+                        /* Error/Delete color */
+                        'accent-yellow': '#FFC107',
+                        /* Warning color */
+                        'accent-info': '#17A2B8',
+                        /* Info color */
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom styles for a clean, light theme */
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F8F9FA;
+            /* primary-light */
+        }
+        
+         ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+         ::-webkit-scrollbar-track {
+            background: #E9ECEF;
+        }
+        
+         ::-webkit-scrollbar-thumb {
+            background: #ced4da;
+            border-radius: 4px;
+        }
+        
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(3px);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        /* Subtle shadows for cards and elements */
+        
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+        }
+        
+        .active-nav-item {
+            background-color: #E9ECEF;
+            /* A lighter shade of grey for active state */
+            color: #212529;
+            /* Darker text */
+            font-weight: 600;
+        }
+        /* Style for the Activity Timeline */
+        
+        .activity-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            background-color: #007BFF;
+            /* accent-blue */
+            border-radius: 50%;
+        }
+        
+        .activity-line {
+            position: absolute;
+            left: 3px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #E9ECEF;
+            /* Light grey line */
+        }
+    </style>
+</head>
+
+<body class="min-h-screen antialiased flex text-text-primary">
+
+    <div id="sidebar" class="w-64 bg-secondary-light p-6 card-shadow flex flex-col border-r border-gray-200 h-screen sticky top-0">
+        <div class="flex items-center mb-10">
+            <svg class="h-8 w-8 text-accent-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+            <span class="ml-2 text-xl font-extrabold text-text-primary">FlexiFit</span>
+        </div>
+        <nav id="nav-list" class="space-y-2 text-sm font-medium">
+        </nav>
+    </div>
+
+    <main class="flex-1 overflow-y-auto">
+        <header class="h-16 bg-primary-light border-b border-gray-200 flex items-center px-6 sticky top-0 z-10">
+            <h1 id="header-title" class="text-xl font-semibold text-text-primary">
+                Dashboard
+            </h1>
+            <div class="ml-auto flex items-center space-x-4">
+                <span class="text-text-secondary">Welcome, Swayam</span>
+                <div class="w-8 h-8 rounded-full bg-accent-blue text-white flex items-center justify-center text-sm font-bold">S</div>
+            </div>
+        </header>
+        <div id="content-area" class="p-6 min-h-[calc(100vh-64px)]">
+        </div>
+    </main>
+
+    <div id="modal-container"></div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const BACKEND_URL = 'http://localhost:3001/api';
+        const MEMBER_STATUSES = ['Active', 'Expired', 'Frozen', 'Trial'];
+        const MEMBERSHIP_TYPES = ['Monthly Basic', 'Quarterly Standard', 'Annual Gold'];
+
+        const navItems = [{
+            id: 'dashboard',
+            name: 'Dashboard',
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>'
+        }, {
+            id: 'members',
+            name: 'Members',
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4.121 4.121 0 01-2.885 3.864C8.966 8.563 8 9.548 8 10.75V19a2 2 0 002 2h4a2 2 0 002-2v-8.25c0-1.202-.966-2.187-2-2.532a4.121 4.121 0 01-2.885-3.864z"/></svg>'
+        }, {
+            id: 'classes',
+            name: 'Classes',
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-8 4H5m11 0h2m-12 0h12M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>'
+        }, {
+            id: 'trainers',
+            name: 'Trainers',
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4.121 4.121 0 012.885 3.864C15.034 8.563 16 9.548 16 10.75V19a2 2 0 002 2h-4a2 2 0 01-2-2v-8.25c0-1.202-.966-2.187-2-2.532a4.121 4.121 0 01-2.885-3.864z"/></svg>'
+        }, {
+            id: 'payments',
+            name: 'Payments',
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9v2m0 0v2m0-2h2m-2 0h-2m5-4h-5m5 0a2 2 0 012 2v2a2 2 0 01-2 2h-2m-3-6h-2m2 0H5m2 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V7a2 2 0 012-2z"/></svg>'
+        }];
+
+        let activeModule = 'dashboard';
+        let membersData = [];
+        let trainersData = [];
+        let classesData = [];
+        let paymentsData = [];
+        let recentActivityData = []; // NEW state variable for activity feed
+        let dashboardStats = {
+            members: 0,
+            trainers: 0,
+            classes: 0
+        };
+
+        // --- Utility Functions ---
+
+        function showMessage(message, type = 'success') {
+            const container = document.getElementById('content-area');
+            let color = type === 'error' ? 'bg-accent-red/20 text-accent-red' : 'bg-accent-green/20 text-accent-green';
+            const messageEl = document.createElement('div');
+            messageEl.className = `p-4 mb-4 ${color} rounded-lg border border-opacity-30 shadow-sm transition-opacity duration-300`;
+            messageEl.innerHTML = `<p class="font-semibold">${message}</p>`;
+
+            container.prepend(messageEl);
+
+            setTimeout(() => {
+                messageEl.style.opacity = '0';
+                messageEl.addEventListener('transitionend', () => messageEl.remove());
+            }, 5000);
+        }
+
+        // --- API Fetching Functions ---
+        async function fetchData(endpoint, moduleName, retries = 3) {
+            const contentArea = document.getElementById('content-area');
+            // Only show loading state if it's the main module fetch, not sub-fetches
+            if (activeModule === moduleName.toLowerCase() || moduleName === 'dashboard') {
+                contentArea.innerHTML = renderLoadingState(moduleName);
+            }
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(`${BACKEND_URL}/${endpoint}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    console.error(`Attempt ${i + 1} failed to fetch ${moduleName}:`, error);
+                    if (i < retries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                    } else {
+                        // Only set error state if it's the main module
+                        if (activeModule === moduleName.toLowerCase()) {
+                            contentArea.innerHTML = renderErrorState(error.message || "Could not connect to the API. Ensure your Node server is running on port 3001.");
+                        }
+                        return null;
+                    }
+                }
+            }
+        }
+
+        async function fetchDashboardStats() {
+            const statsPromise = fetchData('dashboard/stats', 'dashboard');
+            const activityPromise = fetchData('dashboard/activities', 'Recent Activities');
+
+            const [stats, activities] = await Promise.all([statsPromise, activityPromise]);
+
+            if (stats) {
+                dashboardStats = stats;
+            }
+            if (activities) {
+                recentActivityData = activities;
+            }
+            // Only render if we are currently on the dashboard module
+            if (activeModule === 'dashboard') {
+                renderModule();
+            }
+        }
+
+        async function fetchMembers() {
+            const data = await fetchData('members', 'members');
+            if (data) {
+                membersData = data;
+                renderModule();
+            }
+        }
+
+        async function fetchTrainers() {
+            const data = await fetchData('trainers', 'trainers');
+            if (data) {
+                trainersData = data;
+                renderModule();
+            }
+        }
+
+        async function fetchClasses() {
+            const data = await fetchData('classes', 'classes');
+            if (data) {
+                classesData = data;
+                renderModule();
+            }
+        }
+
+        async function fetchPayments() {
+            const data = await fetchData('payments', 'payments');
+            if (data) {
+                paymentsData = data;
+                renderModule();
+            }
+        }
+
+        // --- CRUD Operation Functions ---
+        async function handleSave(endpoint, formData, isEditing) {
+            const method = isEditing ? 'PUT' : 'POST';
+            const url = isEditing ? `${BACKEND_URL}/${endpoint}/${formData.id}` : `${BACKEND_URL}/${endpoint}`;
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} record.`);
+                }
+                closeModal();
+                fetchDataAndRender();
+                showMessage(`Record successfully ${isEditing ? 'updated' : 'added'}!`);
+            } catch (error) {
+                console.error('Save failed:', error);
+                showMessage(`Operation failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function handleDelete(endpoint, id) {
+            // Using a simple confirm box for this demo, replace with custom modal for production
+            if (!window.confirm("Are you sure you want to delete this record? This cannot be undone.")) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/${endpoint}/${id}`, {
+                    method: 'DELETE',
+                });
+
+                if (response.status !== 204) {
+                    throw new Error('Failed to delete record.');
+                }
+                fetchDataAndRender();
+                showMessage(`Record ID ${id} successfully deleted.`);
+            } catch (error) {
+                console.error('Delete failed:', error);
+                showMessage(`Delete operation failed: ${error.message}`, 'error');
+            }
+        }
+
+        function fetchDataAndRender() {
+            if (activeModule === 'dashboard') fetchDashboardStats();
+            if (activeModule === 'members') fetchMembers();
+            if (activeModule === 'trainers') fetchTrainers();
+            if (activeModule === 'classes') fetchClasses();
+            if (activeModule === 'payments') fetchPayments();
+        }
+
+        // --- MODAL Logic ---
+        function openModal(endpoint, data = null) {
+            const container = document.getElementById('modal-container');
+            if (endpoint === 'members') container.innerHTML = renderMemberFormModal(data);
+            if (endpoint === 'trainers') container.innerHTML = renderTrainerFormModal(data);
+            if (endpoint === 'classes') container.innerHTML = renderClassFormModal(data);
+
+            document.getElementById('modal-close').onclick = closeModal;
+            document.getElementById('edit-form').onsubmit = (e) => {
+                e.preventDefault();
+                const form = e.target;
+                let formData;
+
+                if (endpoint === 'members') {
+                    formData = {
+                        id: data ? data.member_id : null,
+                        first_name: form.first_name.value,
+                        last_name: form.last_name.value,
+                        email: form.email.value,
+                        phone_number: form.phone_number.value,
+                        membership_status: form.membership_status.value,
+                    };
+                } else if (endpoint === 'trainers') {
+                    formData = {
+                        id: data ? data.trainer_id : null,
+                        first_name: form.first_name.value,
+                        last_name: form.last_name.value,
+                        email: form.email.value,
+                        specialty: form.specialty.value,
+                    };
+                } else if (endpoint === 'classes') {
+                    formData = {
+                        id: data ? data.class_id : null,
+                        class_name: form.class_name.value,
+                        description: form.description.value,
+                        duration_minutes: parseInt(form.duration_minutes.value),
+                    };
+                }
+                handleSave(endpoint, formData, !!data);
+            };
+        }
+
+        function closeModal() {
+            document.getElementById('modal-container').innerHTML = '';
+        }
+
+        // Function to open the payments modal
+        async function openPaymentModal() {
+            const members = await fetchData('members', 'members');
+            const memberships = await fetchData('memberships', 'memberships');
+            if (!members || !memberships) return;
+
+            const container = document.getElementById('modal-container');
+            container.innerHTML = renderPaymentModal(members, memberships);
+
+            document.getElementById('modal-close').onclick = closeModal;
+
+            // Automatically set the amount based on the selected membership plan
+            const membershipSelect = document.getElementById('membership-select');
+            const paymentAmountInput = document.getElementById('payment-amount');
+
+            const updateAmount = () => {
+                const selectedOption = membershipSelect.options[membershipSelect.selectedIndex];
+                const amount = selectedOption.dataset.amount;
+                paymentAmountInput.value = amount || '';
+            };
+
+            membershipSelect.addEventListener('change', updateAmount);
+            // Initial call to set amount if a plan is pre-selected (though usually, the default is "-- Select a Plan --")
+            updateAmount();
+
+            document.getElementById('payment-form').onsubmit = (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const formData = {
+                    member_id: form.member_id.value,
+                    membership_id: form.membership_id.value,
+                    amount: parseFloat(form.amount.value),
+                    payment_method: form.payment_method.value,
+                };
+                handleSave('payments', formData, false);
+            };
+        }
+
+        // --- RENDERING FUNCTIONS ---
+        function renderMemberStatusBadge(status) {
+            let colorClass = 'bg-gray-700 text-gray-300';
+            if (status === 'Active') colorClass = 'bg-accent-blue/20 text-accent-blue';
+            if (status === 'Expired') colorClass = 'bg-accent-red/20 text-accent-red';
+            if (status === 'Frozen') colorClass = 'bg-accent-yellow/20 text-accent-yellow';
+            if (status === 'Trial') colorClass = 'bg-accent-green/20 text-accent-green';
+            return `<span class="px-3 py-1 text-xs font-semibold rounded-full ${colorClass}">${status}</span>`;
+        }
+
+        // Helper function to format the activity time
+        function timeAgo(dateString) {
+            const now = new Date();
+            const past = new Date(dateString);
+            const diffSeconds = Math.floor((now - past) / 1000);
+
+            if (diffSeconds < 60) return `${diffSeconds}s ago`;
+            const diffMinutes = Math.floor(diffSeconds / 60);
+            if (diffMinutes < 60) return `${diffMinutes}m ago`;
+            const diffHours = Math.floor(diffMinutes / 60);
+            if (diffHours < 24) return `${diffHours}h ago`;
+            const diffDays = Math.floor(diffHours / 24);
+            if (diffDays < 7) return `${diffDays}d ago`;
+
+            return past.toLocaleDateString();
+        }
+
+        function renderLoadingState(moduleName) {
+            return `
+                <div class="text-center p-10 text-accent-blue">
+                    <svg class="animate-spin h-8 w-8 text-accent-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-2 text-text-secondary">Loading ${moduleName} from API...</p>
+                </div>
+            `;
+        }
+
+        function renderErrorState(message) {
+            return `
+                <div class="p-6 bg-accent-red/20 text-accent-red rounded-lg border border-opacity-30 shadow-sm">
+                    <h3 class="text-lg font-bold mb-2">Connection Error</h3>
+                    <p class="text-sm">Failed to load data. Please check the following:</p>
+                    <ul class="list-disc list-inside text-sm mt-2 ml-4 space-y-1">
+                        <li>Is your Node.js backend server running (i.e., did you run <code>node server.js</code>)?</li>
+                        <li>Are your PostgreSQL credentials correct in <code>db.js</code>?</li>
+                        <li>Is the PostgreSQL database running and accessible?</li>
+                    </ul>
+                    <p class="mt-4 font-semibold text-sm">Error Details: ${message}</p>
+                </div>
+            `;
+        }
+
+        // NEW: Render Recent Activity Timeline
+        function renderActivityTimeline(activities) {
+            if (!activities || activities.length === 0) {
+                return `
+                    <div class="p-4 text-center text-text-secondary">
+                        No recent activity recorded.
+                    </div>
+                `;
+            }
+
+            const activityItems = activities.map(activity => `
+                <div class="activity-item relative pl-5 py-3 border-l-2 border-gray-100 hover:bg-gray-50 transition duration-150 rounded-r-lg">
+                    <div class="activity-line absolute"></div>
+                    <p class="text-xs font-semibold uppercase text-text-secondary">${activity.activity_type}</p>
+                    <p class="text-sm mt-1 text-text-primary">
+                        <span class="font-medium">${activity.member_first_name} ${activity.member_last_name}</span> - ${activity.activity_description.split(': ')[1] || activity.activity_description}
+                    </p>
+                    <p class="text-xs text-text-secondary mt-1">${timeAgo(activity.activity_timestamp)}</p>
+                </div>
+            `).join('');
+
+            return `
+                <div class="bg-secondary-light p-5 rounded-xl card-shadow border border-gray-200 lg:col-span-1">
+                    <h3 class="text-xl font-bold text-text-primary mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-accent-info" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Recent Activity
+                    </h3>
+                    <div class="h-96 overflow-y-auto relative pt-1 pb-1">
+                        <div class="activity-line absolute top-0 bottom-0 left-[3px] bg-gray-200"></div>
+                        <div class="space-y-2">
+                           ${activityItems}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMainDashboard() {
+            return `
+                <h2 class="text-3xl font-bold text-text-primary mb-6 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                    Dashboard Overview
+                </h2>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="bg-secondary-light p-5 rounded-xl card-shadow border border-gray-200 transform transition duration-300 hover:scale-[1.02]">
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm font-medium text-text-secondary uppercase">Total Members</p>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4.121 4.121 0 01-2.885 3.864C8.966 8.563 8 9.548 8 10.75V19a2 2 0 002 2h4a2 2 0 002-2v-8.25c0-1.202-.966-2.187-2-2.532a4.121 4.121 0 01-2.885-3.864z"/></svg>
+                                </div>
+                                <p class="text-4xl font-extrabold text-text-primary mt-2">${dashboardStats.members}</p>
+                                <p class="text-sm text-accent-green mt-1">Real-time count</p>
+                            </div>
+                            
+                            <div class="bg-secondary-light p-5 rounded-xl card-shadow border border-gray-200 transform transition duration-300 hover:scale-[1.02]">
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm font-medium text-text-secondary uppercase">Total Trainers</p>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4.121 4.121 0 012.885 3.864C15.034 8.563 16 9.548 16 10.75V19a2 2 0 002 2h-4a2 2 0 01-2-2v-8.25c0-1.202-.966-2.187-2-2.532a4.121 4.121 0 01-2.885-3.864z"/></svg>
+                                </div>
+                                <p class="text-4xl font-extrabold text-text-primary mt-2">${dashboardStats.trainers}</p>
+                                <p class="text-sm text-accent-green mt-1">Specialized staff</p>
+                            </div>
+                            
+                            <div class="bg-secondary-light p-5 rounded-xl card-shadow border border-gray-200 transform transition duration-300 hover:scale-[1.02]">
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm font-medium text-text-secondary uppercase">Total Classes</p>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-8 4H5m11 0h2m-12 0h12M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
+                                </div>
+                                <p class="text-4xl font-extrabold text-text-primary mt-2">${dashboardStats.classes}</p>
+                                <p class="text-sm text-accent-green mt-1">Available sessions</p>
+                            </div>
+                        </div>
+
+                        <!-- Placeholder for other primary dashboard content like charts/graphs -->
+                        <div class="bg-secondary-light p-6 rounded-xl card-shadow border border-gray-200 h-64 flex items-center justify-center">
+                            <p class="text-text-secondary">Future Content Area (e.g., Revenue Chart)</p>
+                        </div>
+                    </div>
+                    
+                    <!-- New Activity Timeline Panel -->
+                    ${renderActivityTimeline(recentActivityData)}
+
+                </div>
+            `;
+        }
+
+        // The rest of the rendering functions (renderMemberFormModal, renderTrainerFormModal, renderClassFormModal, 
+        // renderPaymentModal, renderMembersModule, renderTrainersModule, renderClassesModule, renderPaymentsModule) 
+        // remain the same as the previous response.
+
+        // --- MODAL RENDERING FUNCTIONS (Rest of the file) ---
+
+        function renderMemberFormModal(memberData) {
+            const isEditing = !!memberData;
+            const title = isEditing ? 'Edit Member Details' : 'Add New Member';
+            const first_name = memberData ? memberData.first_name || '' : '';
+            const last_name = memberData ? memberData.last_name || '' : '';
+            const email = memberData ? memberData.email : '';
+            const phone_number = memberData ? memberData.phone_number || '' : '';
+            const membership_status = memberData ? memberData.membership_status || 'Active' : 'Active';
+
+            const statusOptions = MEMBER_STATUSES.map(s =>
+                `<option value="${s}" ${s === membership_status ? 'selected' : ''}>${s}</option>`
+            ).join('');
+
+            return `
+                <div class="modal-backdrop">
+                    <div class="bg-secondary-light w-full max-w-lg p-6 rounded-xl card-shadow border border-gray-200">
+                        <div class="flex justify-between items-center border-b border-gray-200 pb-3 mb-4">
+                            <h3 class="text-xl font-bold text-text-primary">${title}</h3>
+                            <button id="modal-close" class="text-text-secondary hover:text-accent-red transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        
+                        <form id="edit-form" class="space-y-4">
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">First Name <span class="text-accent-red">*</span></span>
+                                <input type="text" name="first_name" value="${first_name}" required
+                                    class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue"
+                                />
+                            </label>
+
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Last Name <span class="text-accent-red">*</span></span>
+                                <input type="text" name="last_name" value="${last_name}" required
+                                    class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue"
+                                />
+                            </label>
+                            
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Email <span class="text-accent-red">*</span></span>
+                                <input type="email" name="email" value="${email}" required
+                                    class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue"
+                                />
+                            </label>
+
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Phone</span>
+                                <input type="text" name="phone_number" value="${phone_number}"
+                                    class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue"
+                                />
+                            </label>
+                            
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Status</span>
+                                <select name="membership_status" class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue appearance-none">
+                                    ${statusOptions}
+                                </select>
+                            </label>
+                            
+                            <div class="pt-4 flex justify-end">
+                                <button type="submit"
+                                    class="flex items-center bg-accent-blue hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 transform hover:scale-[1.02]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> 
+                                    ${isEditing ? 'Update Member' : 'Create Member'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTrainerFormModal(trainerData) {
+            const isEditing = !!trainerData;
+            const title = isEditing ? 'Edit Trainer Details' : 'Add New Trainer';
+            const first_name = trainerData ? trainerData.first_name || '' : '';
+            const last_name = trainerData ? trainerData.last_name || '' : '';
+            const email = trainerData ? trainerData.email : '';
+            const specialty = trainerData ? trainerData.specialty || '' : '';
+
+            return `
+                <div class="modal-backdrop">
+                    <div class="bg-secondary-light w-full max-w-lg p-6 rounded-xl card-shadow border border-gray-200">
+                        <div class="flex justify-between items-center border-b border-gray-200 pb-3 mb-4">
+                            <h3 class="text-xl font-bold text-text-primary">${title}</h3>
+                            <button id="modal-close" class="text-text-secondary hover:text-accent-red transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <form id="edit-form" class="space-y-4">
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">First Name <span class="text-accent-red">*</span></span>
+                                <input type="text" name="first_name" value="${first_name}" required class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue" />
+                            </label>
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Last Name <span class="text-accent-red">*</span></span>
+                                <input type="text" name="last_name" value="${last_name}" required class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue" />
+                            </label>
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Email <span class="text-accent-red">*</span></span>
+                                <input type="email" name="email" value="${email}" required class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue" />
+                            </label>
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Specialty</span>
+                                <input type="text" name="specialty" value="${specialty}" class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue" />
+                            </label>
+                            <div class="pt-4 flex justify-end">
+                                <button type="submit" class="flex items-center bg-accent-blue hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 transform hover:scale-[1.02]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> 
+                                    ${isEditing ? 'Update Trainer' : 'Create Trainer'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderClassFormModal(classData) {
+            const isEditing = !!classData;
+            const title = isEditing ? 'Edit Class Details' : 'Add New Class';
+            const class_name = classData ? classData.class_name || '' : '';
+            const description = classData ? classData.description || '' : '';
+            const duration_minutes = classData ? classData.duration_minutes || '' : '';
+
+            return `
+                <div class="modal-backdrop">
+                    <div class="bg-secondary-light w-full max-w-lg p-6 rounded-xl card-shadow border border-gray-200">
+                        <div class="flex justify-between items-center border-b border-gray-200 pb-3 mb-4">
+                            <h3 class="text-xl font-bold text-text-primary">${title}</h3>
+                            <button id="modal-close" class="text-text-secondary hover:text-accent-red transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <form id="edit-form" class="space-y-4">
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Class Name <span class="text-accent-red">*</span></span>
+                                <input type="text" name="class_name" value="${class_name}" required class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue" />
+                            </label>
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Description</span>
+                                <textarea name="description" class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue">${description}</textarea>
+                            </label>
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Duration (in minutes) <span class="text-accent-red">*</span></span>
+                                <input type="number" name="duration_minutes" value="${duration_minutes}" required class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue" />
+                            </label>
+                            <div class="pt-4 flex justify-end">
+                                <button type="submit" class="flex items-center bg-accent-blue hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 transform hover:scale-[1.02]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> 
+                                    ${isEditing ? 'Update Class' : 'Create Class'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Function to render payment form modal
+        function renderPaymentModal(members, memberships) {
+            const memberOptions = members.map(member => `<option value="${member.member_id}">${member.first_name} ${member.last_name}</option>`).join('');
+            const membershipOptions = memberships.map(plan => `<option value="${plan.membership_id}" data-amount="${plan.price}">${plan.plan_name} - ₹${plan.price}</option>`).join('');
+
+            return `
+                <div class="modal-backdrop">
+                    <div class="bg-secondary-light w-full max-w-lg p-6 rounded-xl card-shadow border border-gray-200">
+                        <div class="flex justify-between items-center border-b border-gray-200 pb-3 mb-4">
+                            <h3 class="text-xl font-bold text-text-primary">Add New Payment</h3>
+                            <button id="modal-close" class="text-text-secondary hover:text-accent-red transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <form id="payment-form" class="space-y-4">
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Member <span class="text-accent-red">*</span></span>
+                                <select name="member_id" required class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue">
+                                    <option value="">-- Select a Member --</option>
+                                    ${memberOptions}
+                                </select>
+                            </label>
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Membership Plan <span class="text-accent-red">*</span></span>
+                                <select name="membership_id" id="membership-select" required class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue">
+                                    <option value="">-- Select a Plan --</option>
+                                    ${membershipOptions}
+                                </select>
+                            </label>
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Amount</span>
+                                <input type="number" name="amount" id="payment-amount" required readonly
+                                    class="mt-1 w-full p-2.5 bg-gray-200 border border-gray-300 rounded-lg text-text-secondary cursor-not-allowed" />
+                            </label>
+                            <label class="block">
+                                <span class="text-sm font-medium text-text-primary">Payment Method <span class="text-accent-red">*</span></span>
+                                <select name="payment_method" required class="mt-1 w-full p-2.5 bg-primary-light border border-gray-300 rounded-lg text-text-primary focus:ring-accent-blue focus:border-accent-blue">
+                                    <option value="Credit Card">Credit Card</option>
+                                    <option value="Debit Card">Debit Card</option>
+                                    <option value="Cash">Cash</option>
+                                    <option value="Bank Transfer">Bank Transfer</option>
+                                </select>
+                            </label>
+                            <div class="pt-4 flex justify-end">
+                                <button type="submit" class="flex items-center bg-accent-blue hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 transform hover:scale-[1.02]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> 
+                                    Record Payment
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMembersModule(members) {
+            let tableRows = members.map(member => `
+                <tr class="border-b border-gray-200 hover:bg-gray-100 transition duration-150 ease-in-out">
+                    <td class="px-6 py-4 font-medium text-text-primary">${member.first_name || ''} ${member.last_name || ''}</td>
+                    <td class="px-6 py-4 text-text-secondary">${member.email}</td>
+                    <td class="px-6 py-4 text-text-primary font-medium">${member.membership_status || 'N/A'}</td>
+                    <td class="px-6 py-4 text-text-secondary">${new Date(member.join_date).toLocaleDateString()}</td>
+                    <td class="px-6 py-4">${renderMemberStatusBadge(member.membership_status || 'N/A')}</td>
+                    <td class="px-6 py-4 text-center space-x-2">
+                        <button onclick='openModal("members", ${JSON.stringify(member)})'
+                            class="text-accent-blue hover:text-blue-700 p-2 rounded-full hover:bg-gray-200 transition duration-150" title="Edit">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5l4 4L7 19l-4 1 1-4z"></path></svg>
+                        </button>
+                        <button onclick="handleDelete('members', '${member.member_id}')"
+                            class="text-accent-red hover:text-red-700 p-2 rounded-full hover:bg-gray-200 transition duration-150" title="Delete">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6m4-6v6"></path></svg>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="p-6 h-full flex flex-col">
+                    <h2 class="text-3xl font-bold text-text-primary mb-6 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4.121 4.121 0 01-2.885 3.864C8.966 8.563 8 9.548 8 10.75V19a2 2 0 002 2h4a2 2 0 002-2v-8.25c0-1.202-.966-2.187-2-2.532a4.121 4.121 0 01-2.885-3.864z"/></svg>
+                        Member Management
+                    </h2>
+                    <div class="flex justify-end items-center mb-6">
+                        <button onclick='openModal("members", null)'
+                            class="flex items-center bg-accent-blue hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 transform hover:scale-[1.02]">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> 
+                            Add New Member
+                        </button>
+                    </div>
+                    <div class="flex-grow overflow-auto bg-secondary-light rounded-xl card-shadow border border-gray-200">
+                        <table class="min-w-full table-auto text-sm text-left">
+                            <thead class="sticky top-0 bg-gray-100 border-b border-gray-200 uppercase text-text-secondary">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Member Name</th>
+                                    <th scope="col" class="px-6 py-3">Email</th>
+                                    <th scope="col" class="px-6 py-3">Membership</th>
+                                    <th scope="col" class="px-6 py-3">Join Date</th>
+                                    <th scope="col" class="px-6 py-3">Status</th>
+                                    <th scope="col" class="px-6 py-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows.length > 0 ? tableRows : `
+                                <tr class="bg-secondary-light">
+                                    <td colspan="6" class="text-center p-10 text-text-secondary">
+                                        No members found in the database. Click 'Add New Member' to start.
+                                    </td>
+                                </tr>
+                                `}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderTrainersModule(trainers) {
+            const tableRows = trainers.map(trainer => `
+                <tr class="border-b border-gray-200 hover:bg-gray-100 transition duration-150 ease-in-out">
+                    <td class="px-6 py-4 font-medium text-text-primary">${trainer.first_name} ${trainer.last_name}</td>
+                    <td class="px-6 py-4 text-text-secondary">${trainer.email}</td>
+                    <td class="px-6 py-4 text-text-primary font-medium">${trainer.specialty || 'General'}</td>
+                    <td class="px-6 py-4 text-text-secondary">${new Date(trainer.hire_date).toLocaleDateString()}</td>
+                    <td class="px-6 py-4 text-center space-x-2">
+                        <button onclick='openModal("trainers", ${JSON.stringify(trainer)})'
+                            class="text-accent-blue hover:text-blue-700 p-2 rounded-full hover:bg-gray-200 transition duration-150" title="Edit">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5l4 4L7 19l-4 1 1-4z"></path></svg>
+                        </button>
+                        <button onclick="handleDelete('trainers', '${trainer.trainer_id}')"
+                            class="text-accent-red hover:text-red-700 p-2 rounded-full hover:bg-gray-200 transition duration-150" title="Delete">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6m4-6v6"></path></svg>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="p-6 h-full flex flex-col">
+                    <h2 class="text-3xl font-bold text-text-primary mb-6 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4.121 4.121 0 01-2.885 3.864C8.966 8.563 8 9.548 8 10.75V19a2 2 0 002 2h4a2 2 0 002-2v-8.25c0-1.202-.966-2.187-2-2.532a4.121 4.121 0 01-2.885-3.864z"/></svg>
+                        Trainer Management
+                    </h2>
+                    <div class="flex justify-end items-center mb-6">
+                        <button onclick='openModal("trainers", null)'
+                            class="flex items-center bg-accent-blue hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 transform hover:scale-[1.02]">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> 
+                            Add New Trainer
+                        </button>
+                    </div>
+                    <div class="flex-grow overflow-auto bg-secondary-light rounded-xl card-shadow border border-gray-200">
+                        <table class="min-w-full table-auto text-sm text-left">
+                            <thead class="sticky top-0 bg-gray-100 border-b border-gray-200 uppercase text-text-secondary">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Trainer Name</th>
+                                    <th scope="col" class="px-6 py-3">Email</th>
+                                    <th scope="col" class="px-6 py-3">Specialty</th>
+                                    <th scope="col" class="px-6 py-3">Hire Date</th>
+                                    <th scope="col" class="px-6 py-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows.length > 0 ? tableRows : `
+                                <tr>
+                                    <td colspan="5" class="text-center p-10 text-text-secondary">No trainers found.</td>
+                                </tr>
+                                `}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderClassesModule(classes) {
+            const tableRows = classes.map(cls => `
+                <tr class="border-b border-gray-200 hover:bg-gray-100 transition duration-150 ease-in-out">
+                    <td class="px-6 py-4 font-medium text-text-primary">${cls.class_name}</td>
+                    <td class="px-6 py-4 text-text-secondary">${cls.description || 'N/A'}</td>
+                    <td class="px-6 py-4 text-text-secondary">${cls.duration_minutes} mins</td>
+                    <td class="px-6 py-4 text-center space-x-2">
+                        <button onclick='openModal("classes", ${JSON.stringify(cls)})'
+                            class="text-accent-blue hover:text-blue-700 p-2 rounded-full hover:bg-gray-200 transition duration-150" title="Edit">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5l4 4L7 19l-4 1 1-4z"></path></svg>
+                        </button>
+                        <button onclick="handleDelete('classes', '${cls.class_id}')"
+                            class="text-accent-red hover:text-red-700 p-2 rounded-full hover:bg-gray-200 transition duration-150" title="Delete">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6m4-6v6"></path></svg>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            return `
+                <div class="p-6 h-full flex flex-col">
+                    <h2 class="text-3xl font-bold text-text-primary mb-6 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-8 4H5m11 0h2m-12 0h12M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
+                        Classes & Schedules
+                    </h2>
+                    <div class="flex justify-end items-center mb-6">
+                        <button onclick='openModal("classes", null)'
+                            class="flex items-center bg-accent-blue hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 transform hover:scale-[1.02]">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> 
+                            Add New Class
+                        </button>
+                    </div>
+                    <div class="flex-grow overflow-auto bg-secondary-light rounded-xl card-shadow border border-gray-200">
+                        <table class="min-w-full table-auto text-sm text-left">
+                            <thead class="sticky top-0 bg-gray-100 border-b border-gray-200 uppercase text-text-secondary">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Class Name</th>
+                                    <th scope="col" class="px-6 py-3">Description</th>
+                                    <th scope="col" class="px-6 py-3">Duration</th>
+                                    <th scope="col" class="px-6 py-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows.length > 0 ? tableRows : `
+                                <tr>
+                                    <td colspan="4" class="text-center p-10 text-text-secondary">No classes found.</td>
+                                </tr>
+                                `}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPaymentsModule(payments) {
+            const tableRows = payments.map(payment => `
+                <tr class="border-b border-gray-200 hover:bg-gray-100 transition duration-150 ease-in-out">
+                    <td class="px-6 py-4 font-medium text-text-primary">${payment.member_first_name} ${payment.member_last_name}</td>
+                    <td class="px-6 py-4 text-accent-blue font-medium">${payment.membership_plan}</td>
+                    <td class="px-6 py-4 text-text-secondary">${new Date(payment.payment_date).toLocaleDateString()}</td>
+                    <td class="px-6 py-4 text-accent-green font-semibold">₹${payment.amount}</td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="p-6 h-full flex flex-col">
+                    <h2 class="text-3xl font-bold text-text-primary mb-6 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9v2m0 0v2m0-2h2m-2 0h-2m5-4h-5m5 0a2 2 0 012 2v2a2 2 0 01-2 2h-2m-3-6h-2m2 0H5m2 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V7a2 2 0 012-2z"/></svg>
+                        Payments
+                    </h2>
+                    <div class="flex justify-end items-center mb-6">
+                        <button onclick='openPaymentModal()'
+                            class="flex items-center bg-accent-blue hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 transform hover:scale-[1.02]">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> 
+                            Add New Payment
+                        </button>
+                    </div>
+                    <div class="flex-grow overflow-auto bg-secondary-light rounded-xl card-shadow border border-gray-200">
+                        <table class="min-w-full table-auto text-sm text-left">
+                            <thead class="sticky top-0 bg-gray-100 border-b border-gray-200 uppercase text-text-secondary">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Member Name</th>
+                                    <th scope="col" class="px-6 py-3">Membership Plan</th>
+                                    <th scope="col" class="px-6 py-3">Date</th>
+                                    <th scope="col" class="px-6 py-3">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows.length > 0 ? tableRows : `
+                                <tr>
+                                    <td colspan="4" class="text-center p-10 text-text-secondary">No payments found.</td>
+                                </tr>
+                                `}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+
+        // --- CORE APPLICATION LOGIC ---
+
+        function renderModule() {
+            const contentArea = document.getElementById('content-area');
+            const headerTitle = document.getElementById('header-title');
+            const item = navItems.find(i => i.id === activeModule);
+            
+            headerTitle.textContent = item ? item.name : 'Dashboard';
+            
+            if (activeModule === 'dashboard') {
+                contentArea.innerHTML = renderMainDashboard();
+            } else if (activeModule === 'members') {
+                contentArea.innerHTML = renderMembersModule(membersData);
+            } else if (activeModule === 'trainers') {
+                contentArea.innerHTML = renderTrainersModule(trainersData);
+            } else if (activeModule === 'classes') {
+                contentArea.innerHTML = renderClassesModule(classesData);
+            } else if (activeModule === 'payments') {
+                contentArea.innerHTML = renderPaymentsModule(paymentsData);
+            } 
+
+            document.querySelectorAll('#nav-list button').forEach(btn => {
+                btn.classList.remove('active-nav-item', 'text-text-primary');
+                btn.classList.add('text-text-secondary', 'hover:bg-gray-100');
+                if (btn.dataset.module === activeModule) {
+                    btn.classList.add('active-nav-item', 'text-text-primary');
+                    btn.classList.remove('text-text-secondary', 'hover:bg-gray-100');
+                }
+            });
+        }
+
+        function setModule(moduleId) {
+            activeModule = moduleId;
+            fetchDataAndRender();
+        }
+        
+        // --- Initialization ---
+        window.onload = function() {
+            const navList = document.getElementById('nav-list');
+            navList.innerHTML = navItems.map(item => `
+                <button
+                    data-module="${item.id}"
+                    onclick="setModule('${item.id}')"
+                    class="flex items-center w-full px-4 py-3 rounded-lg transition duration-200 
+                    text-text-secondary hover:bg-gray-100"
+                >
+                    ${item.icon}
+                    ${item.name}
+                </button>
+            `).join('');
+
+            setModule(activeModule);
+        };
+    </script>
+</body>
+
+</html>
